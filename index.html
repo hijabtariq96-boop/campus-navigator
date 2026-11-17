@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Campus Navigator | Emerson University Multan</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--navy:#0f2a4a;--gold:#c9a227;--bg:#f4f6fa;--card:#fff;--text:#1b2433;--muted:#5d6b82;--line:#dde3ee;--route:#1d6fd8;--ok:#1a8a4a;--bad:#c0392b}
+body[data-theme="dark"]{--bg:#0e1522;--card:#17202f;--text:#e6ebf4;--muted:#9aa8bf;--line:#283347;--route:#5aa2ff;--ok:#4cc27f;--bad:#ff7b6b}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{height:60px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:3px solid var(--gold)}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.crest{width:38px;height:38px;border-radius:50%;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-weight:700;font-size:18px;flex:none}
+.brand h1{font-size:16px;margin:0;line-height:1.15}
+.brand small{color:#c5d0e3;font-size:12px}
+button{font:inherit;cursor:pointer}
+#themeBtn{background:transparent;color:#fff;border:1px solid #ffffff66;border-radius:20px;padding:6px 12px;font-size:13px}
+.app{display:grid;grid-template-columns:380px 1fr;height:calc(100% - 63px)}
+aside{padding:14px;overflow-y:auto;border-right:1px solid var(--line)}
+#map{height:100%;min-height:300px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.card h2{font-size:15px;margin:0 0 8px}
+label{font-size:13px;color:var(--muted);display:block;margin:8px 0 3px}
+input[type=text],select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px}
+.check{display:flex;align-items:center;gap:8px;margin:12px 0;font-size:14px;color:var(--text)}
+.row{display:flex;gap:8px}
+.btn{flex:1;padding:10px;border:0;border-radius:8px;background:var(--navy);color:#fff;font-weight:600}
+.btn.alt{background:transparent;color:var(--text);border:1px solid var(--line);flex:none;padding:10px 14px}
+body[data-theme="dark"] .btn{background:var(--gold);color:#10203a}
+#results{list-style:none;margin:6px 0 0;padding:0}
+#results li{padding:8px;border-radius:6px;cursor:pointer;font-size:14px}
+#results li:hover{background:var(--bg)}
+#results small{color:var(--muted);display:block}
+.stats{display:flex;gap:8px}
+.stat{flex:1;background:var(--bg);border-radius:8px;padding:10px;text-align:center}
+.stat b{font-size:20px;display:block}
+.stat span{font-size:12px;color:var(--muted)}
+#steps{padding-left:20px;margin:10px 0 0;font-size:14px;line-height:1.5}
+.msg{font-size:14px;color:var(--bad)}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;color:#fff}
+.pin{width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--navy);border:2px solid var(--gold);display:grid;place-items:center}
+.pin span{transform:rotate(45deg);font-size:16px}
+.popup button{margin:6px 4px 0 0;padding:6px 10px;border:0;border-radius:6px;background:#0f2a4a;color:#fff;font-size:12px}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;z-index:2000;max-width:90%}
+@media (max-width:800px){
+ .app{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:auto;min-height:calc(100% - 63px)}
+ aside{max-height:none;border-right:0}
+ #map{height:60vh}
+ .brand small{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body data-theme="light">
+<header>
+  <div class="brand">
+    <div class="crest">E</div>
+    <div><h1>Emerson University Multan</h1><small>Smart Campus Navigator</small></div>
+  </div>
+  <button id="themeBtn" aria-label="Toggle dark or light map">Dark map</button>
+</header>
+
+<div class="app">
+  <aside>
+    <div class="card">
+      <h2>Search the campus</h2>
+      <input type="text" id="search" placeholder="Try: VC Office, Lab, Fee" autocomplete="off">
+      <ul id="results"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Find a route</h2>
+      <label for="start">Start</label><select id="start"></select>
+      <label for="end">Destination</label><select id="end"></select>
+      <button class="btn" id="locBtn" style="width:100%;margin-top:10px">📍 Meri location se start karein</button>
+      <label class="check"><input type="checkbox" id="acc"> Wheelchair accessible route</label>
+      <div class="row">
+        <button class="btn" id="go">Show route</button>
+        <button class="btn alt" id="swap" title="Swap start and destination">Swap</button>
+      </div>
+    </div>
+
+    <div class="card" id="out" style="display:none">
+      <h2 id="outTitle"></h2>
+      <div id="msg" class="msg"></div>
+      <div class="stats" id="stats">
+        <div class="stat"><b id="dist">0</b><span>meters</span></div>
+        <div class="stat"><b id="time">0</b><span>minutes walk</span></div>
+      </div>
+      <ol id="steps"></ol>
+    </div>
+    <div class="card">
+      <h2>Campus info</h2>
+      <div style="font-size:13px;line-height:1.6">
+        <b>Main Gate:</b> Bosan Road, near Gol Bagh, Multan.<br>
+        <b>Offices:</b> Mon-Fri, 8:00 AM - 4:00 PM. Jummah break 12:30 - 2:00 PM. Sat and Sun closed.<br>
+        <b>Library:</b> Mon-Fri, 8:00 AM - 4:00 PM. HEC Digital Library online 24/7.<br>
+        <b>Bank / ATM:</b> Not inside campus. Nearest: Bank of Punjab near Gol Bagh.<br>
+        <b>Photocopy:</b> Shop next to the Main Canteen.<br>
+        <b>Visitors:</b> Original CNIC at the Main Gate for a visitor pass.
+      </div>
+    </div>
+  </aside>
+  <div id="map"></div>
+</div>
+
+<!-- Data created by navigator.cpp -->
+<script src="campus_data.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// =====================================================================
+//  Smart Campus Navigator - JavaScript (har hissay ke saath explanation)
+//  Data C++ se aata hai: LOCATIONS (buildings), GRAPH (faasle), ROUTES (raaste)
+// =====================================================================
+
+// ---------- 0. Zaroori files load hui ya nahi? ----------
+// Agar campus_data.js ya Leaflet (internet) load na ho to page ruk jata hai.
+// Is liye pehle check karte hain aur wajah screen par likh dete hain.
+if (typeof LOCATIONS === "undefined" || typeof L === "undefined") {
+  const why = typeof LOCATIONS === "undefined"
+    ? "campus_data.js nahi mili. Is ko index.html ke saath ek hi folder mein rakhein."
+    : "Map library load nahi hui. Internet check karein aur page dobara kholein.";
+  document.getElementById("map").innerHTML = '<div style="padding:20px;color:#c0392b;font-size:16px"><b>Error:</b> ' + why + '</div>';
+  throw new Error(why);   // baqi code na chale
+}
+
+// ---------- 1. Settings ----------
+const WALK_SPEED = 80;    // paidal chalne ki raftaar: 80 meter har minute
+const WHEEL_SPEED = 60;   // wheelchair ki raftaar: 60 meter har minute
+const ICONS = {"Department":"🎓", "Office":"🏛️", "Office / Lab":"💻", "Library":"📚", "Canteen":"🍽️", "Mosque":"🕌", "Hall":"🎭", "Other":"🚪"};
+// Har category ka apna emoji, jo map ke pin par nazar aata hai
+
+const $ = id => document.getElementById(id);   // chhota rasta: $("start") = HTML ka element id="start"
+
+// ---------- 2. Map banana ----------
+const map = L.map("map").setView([30.22111, 71.445], 17);   // map ka markaz aur zoom (17 = building level)
+
+// Light map (aam) aur dark map (raat wala): dono ki tiles alag hain
+const lightTiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  {maxZoom: 19, attribution: "&copy; OpenStreetMap contributors"});
+const darkTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  {maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO"});
+lightTiles.addTo(map);   // shuru mein light map dikhao
+
+const markers = {};                                          // har building ka pin yahan yaad rakhte hain
+let routeLine = L.polyline([], {weight: 6}).addTo(map);      // route ki line (shuru mein khali)
+let endpoints = L.layerGroup().addTo(map);                   // start (hara) aur end (laal) ke nishan
+let timer = null;                                            // animation ka timer
+
+// ---------- 3. Har building ka pin aur popup ----------
+LOCATIONS.forEach(loc => {                                   // forEach = C++ ke for loop jaisa: har building par ek baar
+  const icon = L.divIcon({                                   // pin ki shakal
+    className: "",
+    html: `<div class="pin"><span>${ICONS[loc.category] || "📍"}</span></div>`,
+    iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -34]
+  });
+  // hasRamp true ho to hara badge, warna laal badge
+  const badge = loc.hasRamp
+    ? '<span class="badge" style="background:#1a8a4a">Wheelchair accessible</span>'
+    : '<span class="badge" style="background:#c0392b">No ramp</span>';
+  // Popup ka text: block, floor, rooms, raasta aur note
+  const html = `<div class="popup"><b>${loc.name}</b><br><i>${loc.category}</i><br>
+    <div style="margin:6px 0;font-size:13px;line-height:1.4"><b>Block:</b> ${loc.block}<br><b>Floor:</b> ${loc.floor}<br><b>Rooms:</b> ${loc.rooms}<br><b>Raasta:</b> ${loc.route}${loc.note ? "<br><i>" + loc.note + "</i>" : ""}</div>${badge}<br>
+    <button onclick="setPoint('start',${loc.id})">Start here</button>
+    <button onclick="setPoint('end',${loc.id})">Go here</button></div>`;
+  markers[loc.id] = L.marker([loc.lat, loc.lng], {icon}).addTo(map).bindPopup(html, {maxWidth: 270});
+});
+// Saari buildings ek saath nazar aayein, is liye map ko un par zoom karo
+map.fitBounds(L.latLngBounds(LOCATIONS.map(l => [l.lat, l.lng])), {padding: [40, 40]});
+
+// ---------- 4. Dropdowns bharna ----------
+[$("start"), $("end")].forEach((sel, i) => {                 // dono dropdowns: Start aur Destination
+  sel.innerHTML = `<option value="">${i === 0 ? "Choose start" : "Choose destination"}</option>` +
+    LOCATIONS.map(l => `<option value="${l.id}">${l.name}</option>`).join("");   // har building ek option, value = id
+});
+
+// Popup ke button se start/end set karna
+function setPoint(which, id) {
+  $(which).value = id;                                       // dropdown mein wo building chun lo
+  map.closePopup();
+  if ($("start").value !== "" && $("end").value !== "") showRoute();   // dono chune hon to route dikha do
+}
+
+// ---------- 5. Madadgar functions ----------
+// Do buildings ke GPS se direction (north, east...) nikalta hai
+function compass(a, b) {
+  const angle = (Math.atan2(b.lng - a.lng, b.lat - a.lat) * 180 / Math.PI + 360) % 360;   // angle 0 se 360 degree
+  return ["north","north-east","east","south-east","south","south-west","west","north-west"][Math.round(angle / 45) % 8];   // 8 sirton mein se ek
+}
+
+// Neeche chhota sa paigham dikhata hai (3.5 second baad khud hat jata hai)
+function toast(text) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ---------- 6. Route dikhana (sab se aham function) ----------
+function showRoute() {
+  const s = $("start").value, e = $("end").value, acc = $("acc").checked;   // start id, end id, wheelchair tick
+  $("out").style.display = "block";                          // result wala dabba dikhao
+  $("msg").textContent = "";
+  $("steps").innerHTML = "";
+  $("stats").style.display = "none";
+  clearInterval(timer);                                      // purani animation roko
+  routeLine.setLatLngs([]); endpoints.clearLayers();         // purani line aur nishan mita do
+
+  // Galat input ki checking
+  if (s === "" || e === "") { $("outTitle").textContent = "Route"; $("msg").textContent = "Choose both a start and a destination."; return; }
+  if (s === e) { $("outTitle").textContent = "Route"; $("msg").textContent = "Start and destination are the same place."; return; }
+
+  // C++ ka pehle se nikala hua jawab: key banti hai jaise "23-9"
+  const r = (acc ? ROUTES.accessible : ROUTES.standard)[s + "-" + e];
+  const from = LOCATIONS[s], to = LOCATIONS[e];
+  $("outTitle").textContent = `${from.name} to ${to.name}`;
+
+  // distance -1 ka matlab C++ ko raasta nahi mila (jaise ramp ke baghair building)
+  if (!r || r.distance < 0) {
+    $("msg").textContent = "No wheelchair accessible route exists between these places. Untick the option to see the standard route.";
+    return;
+  }
+
+  // Raaste ki buildings ke GPS points ki list
+  const pts = r.path.map(id => [LOCATIONS[id].lat, LOCATIONS[id].lng]);
+  routeLine.setStyle({color: acc ? "#1a8a4a" : getComputedStyle(document.body).getPropertyValue("--route"), dashArray: acc ? "10 8" : null});   // wheelchair = hari kati hui line
+  map.fitBounds(L.latLngBounds(pts), {padding: [60, 60]});   // map ko route par zoom karo
+  L.circleMarker(pts[0], {radius: 9, color: "#fff", fillColor: "#1a8a4a", fillOpacity: 1, weight: 3}).addTo(endpoints);                // hara = start
+  L.circleMarker(pts[pts.length - 1], {radius: 9, color: "#fff", fillColor: "#c0392b", fillOpacity: 1, weight: 3}).addTo(endpoints);   // laal = end
+
+  // Animation: har do buildings ke beech 20 chhote points banao, phir line dheere dheere barhao
+  const dense = [];
+  for (let i = 0; i < pts.length - 1; i++)
+    for (let k = 0; k < 20; k++)
+      dense.push([pts[i][0] + (pts[i+1][0] - pts[i][0]) * k / 20, pts[i][1] + (pts[i+1][1] - pts[i][1]) * k / 20]);
+  dense.push(pts[pts.length - 1]);
+  let n = 0;
+  timer = setInterval(() => {                                // har 25 milli-second baad
+    n += 2;                                                  // 2 aur points jodo
+    if (n >= dense.length) { routeLine.setLatLngs(dense); clearInterval(timer); }   // khatam: poori line
+    else routeLine.setLatLngs(dense.slice(0, n));            // abhi tak ke points dikhao
+  }, 25);
+
+  // Faasla aur waqt: waqt = faasla / raftaar
+  $("dist").textContent = r.distance;
+  $("time").textContent = Math.max(1, Math.round(r.distance / (acc ? WHEEL_SPEED : WALK_SPEED)));
+  $("stats").style.display = "flex";
+
+  // Step-by-step directions: raaste ki har do agli-pichli buildings ke liye ek line
+  let html = "";
+  for (let i = 0; i < r.path.length - 1; i++) {
+    const a = LOCATIONS[r.path[i]], b = LOCATIONS[r.path[i + 1]];
+    html += `<li>Walk ${GRAPH[a.id][b.id]} m ${compass(a, b)} from <b>${a.name}</b> to <b>${b.name}</b>.</li>`;   // faasla C++ ke GRAPH se
+  }
+  html += `<li>You have arrived at <b>${to.name}</b>.</li>`;
+  $("steps").innerHTML = html;
+}
+
+// Buttons ko functions se jodna
+$("go").onclick = showRoute;                                 // "Show route" button
+$("acc").onchange = () => { if ($("start").value !== "" && $("end").value !== "") showRoute(); };   // tick badalte hi route dobara
+$("swap").onclick = () => { const t = $("start").value; $("start").value = $("end").value; $("end").value = t; showRoute(); };   // start/end ulta
+
+// ---------- 7. Meri location (live GPS) ----------
+let userDot = null, userCircle = null;                       // nila nishan aur accuracy ka gher
+
+// Do GPS points ke beech faasla meters mein (chhote faasle ke liye aasaan formula)
+function distMeters(lat1, lng1, lat2, lng2) {
+  const dy = (lat2 - lat1) * 111000;                         // 1 degree latitude ~ 111,000 meter
+  const dx = (lng2 - lng1) * 111000 * Math.cos(lat1 * Math.PI / 180);   // longitude ka faasla latitude par depend karta hai
+  return Math.sqrt(dx * dx + dy * dy);                       // Pythagoras: tirchha faasla
+}
+
+// GPS mil gaya to yeh chalta hai
+function onLocationFound(pos) {
+  const lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy;   // meri jagah aur kitni sahi hai (meters)
+
+  if (userDot) map.removeLayer(userDot);                     // purana nishan hatao
+  if (userCircle) map.removeLayer(userCircle);
+  userCircle = L.circle([lat, lng], {radius: acc, color: "#1d6fd8", weight: 1, fillOpacity: 0.12}).addTo(map);   // accuracy ka gher
+  userDot = L.circleMarker([lat, lng], {radius: 8, color: "#fff", fillColor: "#1d6fd8", fillOpacity: 1, weight: 3}).addTo(map).bindPopup("You are here");   // nila dot
+
+  // Sab se qareeb building dhoondo (C++ ke "sab se chhota dhoondne" wale loop jaisa)
+  let nearest = null, best = Infinity;
+  LOCATIONS.forEach(l => {
+    const d = distMeters(lat, lng, l.lat, l.lng);
+    if (d < best) { best = d; nearest = l; }                 // chhota mila to yaad rakho
+  });
+
+  if (best > 600) {                                          // 600 m se door = shayad campus se bahar
+    map.setView([lat, lng], 16);
+    toast("You seem to be outside the campus. Come to the Main Gate to start.");
+    return;
+  }
+  $("start").value = nearest.id;                             // qareeb ki building ko Start bana do
+  map.setView([lat, lng], 18);
+  toast(`You are near ${nearest.name} (about ${Math.round(best)} m). Start set. Choose a destination.`);
+  if ($("end").value !== "") showRoute();                    // destination pehle se chuni ho to route dikha do
+}
+
+// GPS na mile to wajah batao
+function onLocationError(err) {
+  const reasons = {
+    1: "Location permission denied. Allow location in browser settings.",
+    2: "Location not available. Turn on GPS and try again.",
+    3: "Location took too long. Try again outside."
+  };
+  toast(reasons[err.code] || "Could not get location.");
+}
+
+$("locBtn").onclick = () => {                                // "Meri location" button dabane par
+  if (!navigator.geolocation) { toast("This browser does not support location."); return; }
+  toast("Finding your location...");
+  navigator.geolocation.getCurrentPosition(onLocationFound, onLocationError, {enableHighAccuracy: true, timeout: 15000});   // browser se GPS maango
+};
+
+// ---------- 8. Search ----------
+$("search").addEventListener("input", () => {                // har lafz likhne par chalta hai
+  const q = $("search").value.trim().toLowerCase();          // chhote (small) letters mein, taake "Lab" aur "lab" same hon
+  const list = $("results");
+  list.innerHTML = "";
+  if (!q) return;                                            // khali box = kuch nahi dikhana
+  // filter = sirf wo buildings jin ke text mein lafz mile
+  const hits = LOCATIONS.filter(l => (l.name + " " + l.category + " " + l.block + " " + l.rooms + " " + l.route + " " + l.note).toLowerCase().includes(q));
+  if (!hits.length) { list.innerHTML = '<li style="cursor:default">No match found. Try a building or office name.</li>'; return; }
+  hits.slice(0, 6).forEach(l => {                            // zyada se zyada 6 nateejay
+    const li = document.createElement("li");
+    li.innerHTML = `${ICONS[l.category] || "📍"} <b>${l.name}</b><small>${l.category} | ${l.block}</small>`;
+    li.onclick = () => { map.flyTo([l.lat, l.lng], 18); markers[l.id].openPopup(); list.innerHTML = ""; $("search").value = ""; };   // click par wahan jao aur popup kholo
+    list.appendChild(li);
+  });
+});
+
+// ---------- 9. Dark / light mode ----------
+$("themeBtn").onclick = () => {
+  const dark = document.body.dataset.theme === "light";      // abhi light hai to ab dark karna hai
+  document.body.dataset.theme = dark ? "dark" : "light";     // CSS ke rang is se badalte hain
+  $("themeBtn").textContent = dark ? "Light map" : "Dark map";
+  if (dark) { map.removeLayer(lightTiles); darkTiles.addTo(map); }   // map ki tasveerain bhi badlo
+  else { map.removeLayer(darkTiles); lightTiles.addTo(map); }
+  if ($("start").value !== "" && $("end").value !== "") showRoute();   // route ka rang naye mode ke hisaab se
+};
+
+// ---------- 10. QR code: index.html?start=0 ----------
+const startParam = new URLSearchParams(location.search).get("start");   // URL se "start" ki value parho
+if (startParam !== null && LOCATIONS[parseInt(startParam)]) {           // value sahi building ki id ho
+  const loc = LOCATIONS[parseInt(startParam)];
+  $("start").value = loc.id;                                 // usay Start bana do
+  map.setView([loc.lat, loc.lng], 18);
+  markers[loc.id].openPopup();
+  toast(`You are at ${loc.name}. Choose a destination.`);
+}
+</script>
+</body>
+</html>
